@@ -1,0 +1,549 @@
+/* Exact Flip-Card Login Design - Better Readable Size */
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800&display=swap');
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+.flip-login-page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #0a1929;
+  font-family: 'Poppins', sans-serif;
+  padding: 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+.flip-login-page::before {
+  content: '';
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background: radial-gradient(circle at 20% 50%, rgba(0, 229, 255, 0.05) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(0, 188, 212, 0.05) 0%, transparent 50%);
+  animation: pulse 4s ease-in-out infinite;
+}
+
+@keyframes pulse {
+
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+/* ============================================
+   FLIP CARD CONTAINER - GOOD SIZE
+   ============================================ */
+.flip-card {
+  width: 700px;
+  height: 420px;
+  position: relative;
+  transform-style: preserve-3d;
+  transition: transform 0.8s cubic-bezier(0.4, 0.0, 0.2, 1);
+  perspective: 1500px;
+  animation: cardEntrance 0.8s ease-out;
+}
+
+@keyframes cardEntrance {
+  from {
+    opacity: 0;
+    transform: scale(0.8) translateY(30px);
+  }
+
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.flip-card.flipped {
+  transform: rotateY(180deg);
+}
+
+.flip-card-front,
+.flip-card-back {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  display: flex;
+  box-shadow: 0 15px 40px rgba(0, 0, 0, 0.6),
+    0 0 20px rgba(0, 229, 255, 0.1);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.flip-card-back {
+  transform: rotateY(180deg);
+}
+
+/* ============================================
+   PANELS - SKEWED DESIGN
+   ============================================ */
+.flip-panel-left,
+.flip-panel-right {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+/* FRONT CARD - LOGIN */
+.flip-card-front .flip-panel-left {
+  width: 48%;
+  background: #0d1b2a;
+  clip-path: polygon(0 0, 100% 0, 85% 100%, 0 100%);
+  padding: 45px 30px 45px 40px;
+  animation: slideInLeft 0.6s ease-out 0.2s both;
+}
+
+.flip-card-front .flip-panel-right {
+  width: 52%;
+  background: linear-gradient(135deg, #00acc1 0%, #00838f 100%);
+  margin-left: -4%;
+  padding: 45px 50px 45px 65px;
+  clip-path: polygon(15% 0, 100% 0, 100% 100%, 0 100%);
+  animation: slideInRight 0.6s ease-out 0.3s both;
+}
+
+/* BACK CARD - REGISTER */
+.flip-card-back .flip-panel-left {
+  width: 52%;
+  background: linear-gradient(135deg, #00acc1 0%, #00838f 100%);
+  margin-right: -4%;
+  padding: 45px 65px 45px 50px;
+  clip-path: polygon(0 0, 85% 0, 100% 100%, 0 100%);
+  animation: slideInLeft 0.6s ease-out 0.3s both;
+}
+
+.flip-card-back .flip-panel-right {
+  width: 48%;
+  background: #0d1b2a;
+  clip-path: polygon(15% 0, 100% 0, 100% 100%, 0 100%);
+  padding: 45px 40px 45px 30px;
+  animation: slideInRight 0.6s ease-out 0.2s both;
+}
+
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-30px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+/* ============================================
+   WELCOME CONTENT
+   ============================================ */
+.welcome-content {
+  text-align: center;
+  color: white;
+  z-index: 1;
+  animation: fadeInUp 0.8s ease-out 0.4s both;
+}
+
+.welcome-content h1 {
+  font-size: 38px;
+  font-weight: 800;
+  margin-bottom: 12px;
+  letter-spacing: 2px;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  line-height: 1.2;
+}
+
+.welcome-content p {
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.5;
+  opacity: 0.85;
+  max-width: 220px;
+  margin: 0 auto;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(15px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.decorative-line {
+  display: none;
+}
+
+/* ============================================
+   FORM CONTAINER
+   ============================================ */
+.auth-form-container {
+  width: 100%;
+  max-width: 260px;
+  animation: fadeIn 0.8s ease-out 0.5s both;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.form-title {
+  font-size: 30px;
+  font-weight: 700;
+  color: white;
+  margin-bottom: 28px;
+  text-align: left;
+  letter-spacing: 0.5px;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+/* ============================================
+   INPUT GROUPS
+   ============================================ */
+.input-group {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  animation: slideInInput 0.4s ease-out backwards;
+}
+
+.input-group:nth-child(1) {
+  animation-delay: 0.6s;
+}
+
+.input-group:nth-child(2) {
+  animation-delay: 0.7s;
+}
+
+.input-group:nth-child(3) {
+  animation-delay: 0.8s;
+}
+
+.input-group:nth-child(4) {
+  animation-delay: 0.9s;
+}
+
+@keyframes slideInInput {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.input-group label {
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.9);
+  text-transform: capitalize;
+  letter-spacing: 0.3px;
+}
+
+.input-group input {
+  width: 100%;
+  padding: 10px 30px 10px 10px;
+  border: none;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.3);
+  background: transparent;
+  font-size: 14px;
+  font-family: 'Poppins', sans-serif;
+  transition: all 0.3s ease;
+  color: white;
+  font-weight: 400;
+}
+
+.input-group input:focus {
+  outline: none;
+  border-bottom-color: #00e5ff;
+  box-shadow: 0 2px 0 0 #00e5ff;
+}
+
+.input-group input::placeholder {
+  color: rgba(255, 255, 255, 0.4);
+  font-weight: 300;
+  font-size: 12px;
+}
+
+.input-icon {
+  position: absolute;
+  right: 0;
+  bottom: 10px;
+  font-size: 14px;
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+/* ============================================
+   SUBMIT BUTTON
+   ============================================ */
+.auth-submit-btn {
+  width: 100%;
+  padding: 13px;
+  background: linear-gradient(135deg, #00e5ff 0%, #00bcd4 100%);
+  color: #0d1b2a;
+  border: none;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(0, 229, 255, 0.4);
+  margin-top: 10px;
+  text-transform: capitalize;
+  letter-spacing: 0.5px;
+  animation: buttonPulse 2s ease-in-out 1s infinite;
+}
+
+@keyframes buttonPulse {
+
+  0%,
+  100% {
+    box-shadow: 0 4px 12px rgba(0, 229, 255, 0.4);
+  }
+
+  50% {
+    box-shadow: 0 6px 20px rgba(0, 229, 255, 0.6);
+  }
+}
+
+.auth-submit-btn:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0, 229, 255, 0.6);
+  background: linear-gradient(135deg, #00fff5 0%, #00d4e5 100%);
+}
+
+.auth-submit-btn:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.auth-submit-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  animation: none;
+}
+
+/* ============================================
+   ERROR MESSAGE
+   ============================================ */
+.auth-error {
+  background: rgba(244, 67, 54, 0.2);
+  color: #ff6b6b;
+  padding: 8px 10px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 500;
+  border-left: 2px solid #f44336;
+  animation: shake 0.4s ease;
+}
+
+@keyframes shake {
+
+  0%,
+  100% {
+    transform: translateX(0);
+  }
+
+  25% {
+    transform: translateX(-5px);
+  }
+
+  75% {
+    transform: translateX(5px);
+  }
+}
+
+/* ============================================
+   FOOTER
+   ============================================ */
+.auth-footer {
+  text-align: center;
+  margin-top: 16px;
+  padding-top: 0;
+  border-top: none;
+  animation: fadeIn 1s ease-out 1.2s both;
+}
+
+.auth-footer p {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+  margin-bottom: 2px;
+  font-weight: 400;
+  display: inline;
+}
+
+.flip-trigger-btn {
+  background: none;
+  border: none;
+  color: #00e5ff;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-decoration: none;
+  padding: 0;
+  margin-left: 4px;
+}
+
+.flip-trigger-btn:hover {
+  color: #00fff5;
+  text-decoration: underline;
+  transform: scale(1.05);
+}
+
+/* ============================================
+   FOOTNOTE
+   ============================================ */
+.login-footnote {
+  margin-top: 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(10px);
+  padding: 10px 16px;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 229, 255, 0.2);
+  animation: fadeInUp 1s ease-out 0.8s both;
+}
+
+.footnote-icon {
+  font-size: 14px;
+  color: #00e5ff;
+}
+
+.login-footnote p {
+  color: rgba(255, 255, 255, 0.8);
+  font-size: 11px;
+  font-weight: 400;
+  margin: 0;
+}
+
+/* ============================================
+   HOVER EFFECTS ON PANELS
+   ============================================ */
+.flip-card-front .flip-panel-right::before,
+.flip-card-back .flip-panel-left::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(45deg, transparent 30%, rgba(255, 255, 255, 0.05) 50%, transparent 70%);
+  animation: shimmer 3s ease-in-out infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+@media (max-width: 800px) {
+  .flip-card {
+    width: 550px;
+    height: 360px;
+  }
+
+  .welcome-content h1 {
+    font-size: 32px;
+  }
+
+  .form-title {
+    font-size: 26px;
+  }
+}
+
+@media (max-width: 600px) {
+  .flip-card {
+    width: 90%;
+    max-width: 500px;
+    height: auto;
+  }
+
+  .flip-card-front,
+  .flip-card-back {
+    flex-direction: column;
+  }
+
+  .flip-card-front .flip-panel-left,
+  .flip-card-front .flip-panel-right,
+  .flip-card-back .flip-panel-left,
+  .flip-card-back .flip-panel-right {
+    width: 100% !important;
+    margin: 0 !important;
+    clip-path: none !important;
+    padding: 35px !important;
+  }
+
+  .welcome-content h1 {
+    font-size: 28px;
+  }
+}
+
+/* ============================================
+   SMOOTH ANIMATIONS
+   ============================================ */
+.flip-card * {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.flip-login-page {
+  perspective: 2000px;
+}
