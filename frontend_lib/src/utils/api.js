@@ -137,6 +137,42 @@ export const bookAPI = {
     getCategories: async () => {
         return apiRequest('/books/categories');
     },
+
+    uploadBook: async (formData) => {
+        const token = getAuthToken();
+        const response = await fetch(`${API_URL}/upload/book`, {
+            method: 'POST',
+            headers: {
+                ...(token && { 'Authorization': `Bearer ${token}` }),
+            },
+            body: formData, // Don't set Content-Type for FormData
+        });
+        return handleResponse(response);
+    },
+
+    deleteBook: async (id) => {
+        return apiRequest(`/upload/book/${id}`, { method: 'DELETE' });
+    },
+
+    downloadBook: async (digitalUrl) => {
+        const token = getAuthToken();
+        const fullUrl = digitalUrl.startsWith('http')
+            ? digitalUrl
+            : `${API_URL.replace('/api', '')}${digitalUrl}`;
+
+        const response = await fetch(fullUrl, {
+            headers: {
+                ...(token && { 'Authorization': `Bearer ${token}` }),
+            },
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to download book');
+        }
+
+        const blob = await response.blob();
+        return blob;
+    },
 };
 
 // Borrowing APIs
@@ -265,6 +301,28 @@ export const systemAPI = {
     },
 };
 
+// Session/Active Users APIs
+export const sessionAPI = {
+    getActiveSessions: async () => {
+        return apiRequest('/sessions/active');
+    },
+
+    getActiveStudents: async () => {
+        return apiRequest('/sessions/active-students');
+    },
+
+    getActiveByRole: async () => {
+        return apiRequest('/sessions/active-by-role');
+    },
+};
+
+// Real-Time Analytics
+export const realtimeAPI = {
+    getRealtimeStats: async () => {
+        return apiRequest('/analytics/dashboard');
+    },
+};
+
 // Profile APIs
 export const profileAPI = {
     getProfile: async () => {
@@ -307,4 +365,6 @@ export default {
     logs: logsAPI,
     system: systemAPI,
     profile: profileAPI,
+    sessions: sessionAPI,
+    realtime: realtimeAPI,
 };

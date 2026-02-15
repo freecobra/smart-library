@@ -1,17 +1,22 @@
 // src/pages/Librarian/Dashboard.jsx
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
+import { useSocket } from '../../hooks/useSocket';
 import { librarianAPI } from '../../utils/librarianAPI';
-import { borrowingAPI } from '../../utils/api';
+import { borrowingAPI, sessionAPI, bookAPI } from '../../utils/api';
+import BookUploadModal from '../../components/BookUploadModal';
 import UserProfileDropdown from '../../components/UserProfileDropdown';
 import './LibrarianDashboard.css';
 
 const LibrarianDashboard = () => {
   const { user, logout } = useAuth();
+  const { notifications, isConnected } = useSocket();
   const [activeTab, setActiveTab] = useState('today');
   const [activeView, setActiveView] = useState('dashboard'); // dashboard, books, students, staff
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [activeStudents, setActiveStudents] = useState([]);
 
   const [stats, setStats] = useState({
     totalBooks: 0,
@@ -60,6 +65,33 @@ const LibrarianDashboard = () => {
 
   useEffect(() => {
     fetchDashboardData();
+
+    // Add theme class to body for scrollbar styling
+    document.body.classList.add('librarian-theme');
+
+    // Refresh data every 30 seconds for real-time updates
+    const interval = setInterval(fetchDashboardData, 30000);
+    return () => {
+      clearInterval(interval);
+      document.body.classList.remove('librarian-theme');
+    };
+  }, []);
+
+  // Fetch active students
+  useEffect(() => {
+    const fetchActiveStudents = async () => {
+      try {
+        const data = await sessionAPI.getActiveStudents();
+        setActiveStudents(data.sessions || []);
+      } catch (err) {
+        console.error('Error fetching active students:', err);
+      }
+    };
+
+    fetchActiveStudents();
+    // Refresh every 30 seconds
+    const interval = setInterval(fetchActiveStudents, 30000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleApproveRequest = async (requestId) => {
@@ -83,6 +115,24 @@ const LibrarianDashboard = () => {
     } catch (err) {
       console.error('Error rejecting request:', err);
       alert(err.message || 'Failed to reject request');
+    }
+  };
+
+  const handleUploadSuccess = async (book) => {
+    console.log('Book uploaded:', book);
+    setShowUploadModal(false);
+    await fetchDashboardData();
+  };
+
+  const handleDeleteBook = async (bookId) => {
+    try {
+      if (!window.confirm('Are you sure you want to delete this book?')) return;
+      await bookAPI.deleteBook(bookId);
+      await fetchDashboardData();
+      alert('Book deleted successfully!');
+    } catch (err) {
+      console.error('Error deleting book:', err);
+      alert(err.message || 'Failed to delete book');
     }
   };
 
@@ -154,29 +204,47 @@ const LibrarianDashboard = () => {
         {/* Notifications */}
         <div className="dashboard-card">
           <div className="card-header">
-            <h2><i className="bi bi-bell"></i> Notifications</h2>
-            <div className="card-tabs">
-              <button
-                className={`card-tab ${activeTab === 'today' ? 'active' : ''}`}
-                onClick={() => setActiveTab('today')}
-              >
-                Today
-              </button>
-              <button
-                className={`card-tab ${activeTab === 'week' ? 'active' : ''}`}
-                onClick={() => setActiveTab('week')}
-              >
-                This Week
-              </button>
-              <button
-                className={`card-tab ${activeTab === 'month' ? 'active' : ''}`}
-                onClick={() => setActiveTab('month')}
-              >
-                This Month
-              </button>
+            <h2><i className="bi bi-bell"></i> Real-time Notifications</h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+              <div style={{ fontSize: '0.75rem', color: isConnected ? '#10b981' : '#ef4444', fontWeight: '600' }}>
+                {isConnected ? '🟢 Live' : '🔴 Offline'}
+              </div>
+              <div className="card-tabs">
+                <button
+                  className={`card-tab ${activeTab === 'today' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('today')}
+                >
+                  Today
+                </button>
+                <button
+                  className={`card-tab ${activeTab === 'week' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('week')}
+                >
+                  This Week
+                </button>
+                <button
+                  className={`card-tab ${activeTab === 'month' ? 'active' : ''}`}
+                  onClick={() => setActiveTab('month')}
+                >
+                  This Month
+                </button>
+              </div>
             </div>
           </div>
           <div className="card-body">
+            {/* Show real-time notifications first */}
+            {notifications.length > 0 && (
+              <div style={{ marginBottom: '1rem', padding: '0.75rem', background: '#eff6ff', borderRadius: '8px', border: '1px solid #bfdbfe' }}>
+                <div style={{ fontSize: '0.75rem', fontWeight: '600', color: '#1e40af', marginBottom: '0.5rem' }}>
+                  <i className="bi bi-broadcast"></i> Latest Updates
+                </div>
+                {notifications.slice(0, 3).map((notif, idx) => (
+                  <div key={idx} style={{ fontSize: '0.8rem', color: '#1e3a8a', marginBottom: '0.25rem' }}>
+                    • {notif.message || notif.text}
+                  </div>
+                ))}
+              </div>
+            )}
             {recentActivity.length > 0 ? (
               recentActivity.slice(0, 5).map((activity, index) => (
                 <div key={index} className="notification-item">
@@ -199,7 +267,7 @@ const LibrarianDashboard = () => {
         {/* Total Books Report */}
         <div className="dashboard-card">
           <div className="card-header">
-            <h2><i className="bi bi-bar-chart"></i> Total Books Report</h2>
+            <h2><i className="bi bi-bar-chart"></i> Live Library Stats</h2>
             <select className="date-selector">
               <option>Weekly</option>
               <option>Monthly</option>
@@ -211,38 +279,42 @@ const LibrarianDashboard = () => {
               <div className="chart-visual">
                 <div className="chart-center">
                   <div className="chart-center-value">{stats.totalBooks}</div>
-                  <div className="chart-center-label">Weekly Books</div>
+                  <div className="chart-center-label">Total Books</div>
                 </div>
               </div>
               <div className="chart-legend">
                 <div className="legend-item">
-                  <div className="legend-value">44.4%</div>
+                  <div className="legend-value">{stats.availableBooks}</div>
                   <div className="legend-label">
                     <span className="legend-dot green"></span>
-                    New
+                    Available
                   </div>
                 </div>
                 <div className="legend-item">
-                  <div className="legend-value">33.3%</div>
+                  <div className="legend-value">{stats.borrowedBooks}</div>
                   <div className="legend-label">
                     <span className="legend-dot blue"></span>
-                    Issued
+                    Borrowed
                   </div>
                 </div>
                 <div className="legend-item">
-                  <div className="legend-value">11.1%</div>
+                  <div className="legend-value">{stats.overdueBooks}</div>
                   <div className="legend-label">
                     <span className="legend-dot purple"></span>
-                    Lost
+                    Overdue
                   </div>
                 </div>
                 <div className="legend-item">
-                  <div className="legend-value">11.1%</div>
+                  <div className="legend-value">{stats.pendingRequests}</div>
                   <div className="legend-label">
                     <span className="legend-dot orange"></span>
-                    Returned
+                    Pending
                   </div>
                 </div>
+              </div>
+              <div style={{ marginTop: '1rem', padding: '0.75rem', background: '#f9fafb', borderRadius: '6px', textAlign: 'center' }}>
+                <div style={{ fontSize: '0.7rem', color: '#6b7280', marginBottom: '0.25rem' }}>Active Students</div>
+                <div style={{ fontSize: '1.25rem', fontWeight: '700', color: '#111827' }}>{activeStudents.length}</div>
               </div>
             </div>
           </div>
@@ -329,6 +401,9 @@ const LibrarianDashboard = () => {
     <div className="dashboard-card" style={{ gridColumn: '1 / -1' }}>
       <div className="card-header">
         <h2><i className="bi bi-bookshelf"></i> Books Management</h2>
+        <button onClick={() => setShowUploadModal(true)} className="btn btn-primary">
+          <i className="bi bi-plus-lg"></i> Upload Book
+        </button>
       </div>
       <div className="card-body">
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1rem' }}>
@@ -340,9 +415,16 @@ const LibrarianDashboard = () => {
               <p style={{ color: '#6b7280', fontSize: '0.875rem', margin: '0 0 0.5rem 0' }}>
                 <i className="bi bi-person"></i> {book.author}
               </p>
-              <p style={{ color: '#9ca3af', fontSize: '0.8rem', margin: '0' }}>
+              <p style={{ color: '#9ca3af', fontSize: '0.8rem', margin: '0 0 0.5rem 0' }}>
                 <i className="bi bi-box"></i> Available: {book.availableQuantity}/{book.quantity}
               </p>
+              <button
+                onClick={() => handleDeleteBook(book.id)}
+                className="btn btn-danger btn-sm"
+                style={{ marginTop: '0.5rem' }}
+              >
+                <i className="bi bi-trash"></i> Delete
+              </button>
             </div>
           ))}
         </div>
@@ -351,56 +433,89 @@ const LibrarianDashboard = () => {
   );
 
   const renderStudentsView = () => (
-    <div className="dashboard-card" style={{ gridColumn: '1 / -1' }}>
-      <div className="card-header">
-        <h2><i className="bi bi-people"></i> Students Management</h2>
+    <>
+      {/* Active Students Section */}
+      <div className="dashboard-card" style={{ gridColumn: '1 / -1', marginBottom: '1rem' }}>
+        <div className="card-header">
+          <h2><i className="bi bi-activity"></i> Currently Active Students ({activeStudents.length})</h2>
+          <div style={{ fontSize: '0.75rem', color: isConnected ? '#10b981' : '#ef4444' }}>
+            {isConnected ? '🟢 Live' : '🔴 Offline'}
+          </div>
+        </div>
+        <div className="card-body">
+          {activeStudents.length > 0 ? (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: '0.75rem' }}>
+              {activeStudents.map((session, idx) => (
+                <div key={idx} style={{ padding: '0.75rem', background: '#f0fdf4', borderRadius: '6px', border: '1px solid #86efac' }}>
+                  <div style={{ fontWeight: '600', fontSize: '0.875rem', marginBottom: '0.25rem' }}>
+                    <i className="bi bi-person-circle"></i> {session.userName}
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#6b7280' }}>
+                    <i className="bi bi-clock"></i> {new Date(session.lastActivity).toLocaleTimeString()}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p style={{ color: '#9ca3af', textAlign: 'center', padding: '2rem' }}>
+              <i className="bi bi-person-x"></i> No active students at the moment
+            </p>
+          )}
+        </div>
       </div>
-      <div className="card-body">
-        <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ borderBottom: '2px solid #e5e7eb' }}>
-              <th style={{ padding: '1rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600' }}>
-                <i className="bi bi-person"></i> Name
-              </th>
-              <th style={{ padding: '1rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600' }}>
-                <i className="bi bi-envelope"></i> Email
-              </th>
-              <th style={{ padding: '1rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600' }}>
-                <i className="bi bi-card-text"></i> Student ID
-              </th>
-              <th style={{ padding: '1rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600' }}>
-                <i className="bi bi-building"></i> Department
-              </th>
-              <th style={{ padding: '1rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600' }}>
-                <i className="bi bi-circle-fill"></i> Status
-              </th>
-            </tr>
-          </thead>
-          <tbody>
-            {members.map((member) => (
-              <tr key={member.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
-                <td style={{ padding: '1rem', fontSize: '0.875rem' }}>{member.name}</td>
-                <td style={{ padding: '1rem', fontSize: '0.875rem', color: '#6b7280' }}>{member.email}</td>
-                <td style={{ padding: '1rem', fontSize: '0.875rem', color: '#6b7280' }}>{member.studentId || 'N/A'}</td>
-                <td style={{ padding: '1rem', fontSize: '0.875rem', color: '#6b7280' }}>{member.department || 'N/A'}</td>
-                <td style={{ padding: '1rem', fontSize: '0.875rem' }}>
-                  <span style={{
-                    padding: '0.25rem 0.75rem',
-                    borderRadius: '6px',
-                    fontSize: '0.75rem',
-                    fontWeight: '600',
-                    background: member.isActive ? '#d1fae5' : '#fee2e2',
-                    color: member.isActive ? '#065f46' : '#991b1b'
-                  }}>
-                    {member.isActive ? 'Active' : 'Inactive'}
-                  </span>
-                </td>
+
+      {/* All Students Table */}
+      <div className="dashboard-card" style={{ gridColumn: '1 / -1' }}>
+        <div className="card-header">
+          <h2><i className="bi bi-people"></i> All Students</h2>
+        </div>
+        <div className="card-body">
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ borderBottom: '2px solid #e5e7eb' }}>
+                <th style={{ padding: '1rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600' }}>
+                  <i className="bi bi-person"></i> Name
+                </th>
+                <th style={{ padding: '1rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600' }}>
+                  <i className="bi bi-envelope"></i> Email
+                </th>
+                <th style={{ padding: '1rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600' }}>
+                  <i className="bi bi-card-text"></i> Student ID
+                </th>
+                <th style={{ padding: '1rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600' }}>
+                  <i className="bi bi-building"></i> Department
+                </th>
+                <th style={{ padding: '1rem', textAlign: 'left', fontSize: '0.875rem', fontWeight: '600' }}>
+                  <i className="bi bi-circle-fill"></i> Status
+                </th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {members.map((member) => (
+                <tr key={member.id} style={{ borderBottom: '1px solid #e5e7eb' }}>
+                  <td style={{ padding: '1rem', fontSize: '0.875rem' }}>{member.name}</td>
+                  <td style={{ padding: '1rem', fontSize: '0.875rem', color: '#6b7280' }}>{member.email}</td>
+                  <td style={{ padding: '1rem', fontSize: '0.875rem', color: '#6b7280' }}>{member.studentId || 'N/A'}</td>
+                  <td style={{ padding: '1rem', fontSize: '0.875rem', color: '#6b7280' }}>{member.department || 'N/A'}</td>
+                  <td style={{ padding: '1rem', fontSize: '0.875rem' }}>
+                    <span style={{
+                      padding: '0.25rem 0.75rem',
+                      borderRadius: '6px',
+                      fontSize: '0.75rem',
+                      fontWeight: '600',
+                      background: member.isActive ? '#d1fae5' : '#fee2e2',
+                      color: member.isActive ? '#065f46' : '#991b1b'
+                    }}>
+                      {member.isActive ? 'Active' : 'Inactive'}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
-    </div>
+    </>
   );
 
   const renderStaffView = () => (
@@ -510,6 +625,13 @@ const LibrarianDashboard = () => {
         {/* Render active view */}
         {renderContent()}
       </main>
+
+      {/* Upload Modal */}
+      <BookUploadModal
+        isOpen={showUploadModal}
+        onClose={() => setShowUploadModal(false)}
+        onSuccess={handleUploadSuccess}
+      />
     </div>
   );
 };

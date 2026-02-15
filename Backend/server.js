@@ -2,11 +2,14 @@
 require('dotenv').config();
 
 const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
 const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const path = require('path');
 const fs = require('fs');
+const jwt = require('jsonwebtoken');
 
 // Import routes
 const authRoutes = require('./routes/auth');
@@ -18,9 +21,24 @@ const statisticsRoutes = require('./routes/statistics');
 const logsRoutes = require('./routes/logs');
 const systemRoutes = require('./routes/system');
 const profileRoutes = require('./routes/profile');
+const uploadRoutes = require('./routes/upload');
+const sessionsRoutes = require('./routes/sessions');
+const sessionManager = require('./routes/sessions');
 
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    credentials: true,
+    methods: ['GET', 'POST']
+  }
+});
+
 const PORT = process.env.PORT || 5000;
+
+// Make io available to routes
+app.set('io', io);
 
 /* =========================
    SECURITY MIDDLEWARE
@@ -76,6 +94,59 @@ if (!fs.existsSync(uploadsPath)) {
 app.use('/uploads', express.static(uploadsPath));
 
 /* =========================
+   SOCKET.IO REAL-TIME
+========================= */
+io.on('connection', (socket) => {
+  console.log('🔌 User connected:', socket.id);
+
+  // Authenticate socket connection
+  socket.on('authenticate', (token) => {
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key');
+      socket.userId = decoded.id;
+      socket.userRole = decoded.role;
+
+      // Add to active sessions
+      sessionManager.addSession(decoded.id, socket.id, {
+        name: decoded.name,
+        email: decoded.email,
+        role: decoded.role,
+        department: decoded.department,
+        studentId: decoded.studentId
+      });
+
+      socket.emit('authenticated', { success: true });
+
+      // Broadcast updated active users count
+      io.emit('activeUsers:updated', {
+        total: sessionManager.activeSessions.size
+      });
+
+      console.log(`✅ User authenticated: ${decoded.name} (${decoded.role})`);
+    } catch (error) {
+      console.error('Socket auth error:', error);
+      socket.emit('authenticated', { success: false, error: 'Invalid token' });
+    }
+  });
+
+  // Handle activity updates
+  socket.on('activity', () => {
+    sessionManager.updateActivity(socket.id);
+  });
+
+  // Handle disconnect
+  socket.on('disconnect', () => {
+    console.log('❌ User disconnected:', socket.id);
+    sessionManager.removeSession(socket.id);
+
+    // Broadcast updated active users count
+    io.emit('activeUsers:updated', {
+      total: sessionManager.activeSessions.size
+    });
+  });
+});
+
+/* =========================
    HEALTH CHECK
 ========================= */
 app.get('/health', (req, res) => {
@@ -83,6 +154,7 @@ app.get('/health', (req, res) => {
     status: 'OK',
     message: 'Smart Library API is running',
     timestamp: new Date().toISOString(),
+    activeConnections: io.engine.clientsCount
   });
 });
 
@@ -132,6 +204,8 @@ app.use('/api/statistics', statisticsRoutes);
 app.use('/api/logs', logsRoutes);
 app.use('/api/system', systemRoutes);
 app.use('/api/profile', profileRoutes);
+app.use('/api/upload', uploadRoutes);
+app.use('/api/sessions', sessionsRoutes);
 
 /* =========================
    SERVE REACT (PRODUCTION)
@@ -168,9 +242,11 @@ app.use((err, req, res, next) => {
 /* =========================
    START SERVER
 ========================= */
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`🚀 Smart Library running on port ${PORT}`);
   console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🔌 WebSocket server ready`);
 });
 
-module.exports = app;
+module.exports = { app, server, io };
+

@@ -145,6 +145,7 @@ router.get('/me', authenticateToken, async (req, res) => {
                 role: true,
                 department: true,
                 studentId: true,
+                profilePicture: true,
                 isActive: true,
                 createdAt: true,
                 updatedAt: true
