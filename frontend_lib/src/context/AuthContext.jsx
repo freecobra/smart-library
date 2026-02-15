@@ -5,6 +5,7 @@ import { authAPI } from '../utils/api';
 const AuthContext = createContext();
 
 export const useAuth = () => {
+  const url = "https://smart-library-4zgo.onrender.com"
   const context = useContext(AuthContext);
   if (!context) {
     throw new Error('useAuth must be used within an AuthProvider');
