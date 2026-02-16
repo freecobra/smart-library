@@ -37,6 +37,14 @@ const Profile = () => {
         }
     }, [user]);
 
+    // Scoped theme for scrollbar targeting
+    useEffect(() => {
+        document.body.classList.add('profile-theme');
+        return () => {
+            document.body.classList.remove('profile-theme');
+        };
+    }, []);
+
     const getProfileImageUrl = (profilePicture) => {
         if (!profilePicture) return null;
         if (profilePicture.startsWith('http')) return profilePicture;

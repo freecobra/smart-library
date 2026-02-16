@@ -1,11 +1,12 @@
 // src/pages/Librarian/Dashboard.jsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useSocket } from '../../hooks/useSocket';
 import { librarianAPI } from '../../utils/librarianAPI';
 import { borrowingAPI, sessionAPI, bookAPI } from '../../utils/api';
 import BookUploadModal from '../../components/BookUploadModal';
 import UserProfileDropdown from '../../components/UserProfileDropdown';
+import BookViewer from '../../components/BookViewer';
 import './LibrarianDashboard.css';
 
 const LibrarianDashboard = () => {
@@ -17,6 +18,10 @@ const LibrarianDashboard = () => {
   const [error, setError] = useState(null);
   const [showUploadModal, setShowUploadModal] = useState(false);
   const [activeStudents, setActiveStudents] = useState([]);
+
+  // Book Viewer State
+  const [viewerBook, setViewerBook] = useState(null);
+  const [showViewer, setShowViewer] = useState(false);
 
   const [stats, setStats] = useState({
     totalBooks: 0,
@@ -35,8 +40,8 @@ const LibrarianDashboard = () => {
   const [recentActivity, setRecentActivity] = useState([]);
 
   // Fetch all dashboard data
-  const fetchDashboardData = async () => {
-    setLoading(true);
+  const fetchDashboardData = useCallback(async (isBackground = false) => {
+    if (!isBackground) setLoading(true);
     setError(null);
     try {
       const statsData = await librarianAPI.getStats();
@@ -57,27 +62,49 @@ const LibrarianDashboard = () => {
       setRecentActivity(activityData.activities || []);
     } catch (err) {
       console.error('Error loading dashboard data:', err);
-      setError(`Failed to load dashboard data: ${err.message || 'Unknown error'}`);
+      // Only show error state on initial load, otherwise just log it to avoid disrupting user
+      if (!isBackground) {
+        setError(`Failed to load dashboard data: ${err.message || 'Unknown error'}`);
+      }
     } finally {
-      setLoading(false);
+      if (!isBackground) setLoading(false);
     }
-  };
-
-  useEffect(() => {
-    fetchDashboardData();
-
-    // Add theme class to body for scrollbar styling
-    document.body.classList.add('librarian-theme');
-
-    // Refresh data every 30 seconds for real-time updates
-    const interval = setInterval(fetchDashboardData, 30000);
-    return () => {
-      clearInterval(interval);
-      document.body.classList.remove('librarian-theme');
-    };
   }, []);
 
-  // Fetch active students
+  // 1. Initial Dashboard Data Load & Theme
+  useEffect(() => {
+    fetchDashboardData();
+    document.body.classList.add('librarian-theme');
+    return () => {
+      document.body.classList.remove('librarian-theme');
+    };
+  }, []); // Only runs on mount
+
+  // 2. Dashboard Data Interval (Pauses when modal is open)
+  useEffect(() => {
+    let interval;
+    if (!showUploadModal) {
+      interval = setInterval(() => fetchDashboardData(true), 30000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [fetchDashboardData, showUploadModal]);
+
+  // 3. Initial Active Students Load
+  useEffect(() => {
+    const fetchActiveStudents = async () => {
+      try {
+        const data = await sessionAPI.getActiveStudents();
+        setActiveStudents(data.sessions || []);
+      } catch (err) {
+        console.error('Error fetching active students:', err);
+      }
+    };
+    fetchActiveStudents();
+  }, []); // Only runs on mount
+
+  // 4. Active Students Interval (Pauses when modal is open)
   useEffect(() => {
     const fetchActiveStudents = async () => {
       try {
@@ -88,11 +115,14 @@ const LibrarianDashboard = () => {
       }
     };
 
-    fetchActiveStudents();
-    // Refresh every 30 seconds
-    const interval = setInterval(fetchActiveStudents, 30000);
-    return () => clearInterval(interval);
-  }, []);
+    let interval;
+    if (!showUploadModal) {
+      interval = setInterval(fetchActiveStudents, 30000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [showUploadModal]);
 
   const handleApproveRequest = async (requestId) => {
     try {
@@ -124,6 +154,33 @@ const LibrarianDashboard = () => {
     await fetchDashboardData();
   };
 
+  const handleViewBook = (book) => {
+    setViewerBook(book);
+    setShowViewer(true);
+  };
+
+  const handleDownloadBook = async (book) => {
+    if (!book.digitalUrl) {
+      alert('This book does not have a digital version available for download');
+      return;
+    }
+
+    try {
+      const blob = await bookAPI.downloadBook(book.digitalUrl);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${book.title.replace(/[^a-z0-9]/gi, '_')}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Error downloading book:', error);
+      alert('Failed to download book. Please try again.');
+    }
+  };
+
   const handleDeleteBook = async (bookId) => {
     try {
       if (!window.confirm('Are you sure you want to delete this book?')) return;
@@ -134,6 +191,15 @@ const LibrarianDashboard = () => {
       console.error('Error deleting book:', err);
       alert(err.message || 'Failed to delete book');
     }
+  };
+
+  const getBookCoverUrl = (coverPath) => {
+    if (!coverPath) return null;
+    if (coverPath.startsWith('http')) return coverPath;
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+    const baseUrl = apiUrl.split('/api')[0];
+    const cleanPath = coverPath.startsWith('/') ? coverPath : `/${coverPath}`;
+    return `${baseUrl}${cleanPath}`;
   };
 
   // Render different views based on activeView
@@ -408,23 +474,55 @@ const LibrarianDashboard = () => {
       <div className="card-body">
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1rem' }}>
           {books.map((book) => (
-            <div key={book.id} style={{ padding: '1rem', background: '#f9fafb', borderRadius: '8px', border: '1px solid #e5e7eb' }}>
-              <h3 style={{ fontSize: '1rem', fontWeight: '600', margin: '0 0 0.5rem 0' }}>
-                <i className="bi bi-book"></i> {book.title}
+            <div key={book.id} style={{ padding: '1rem', background: '#f9fafb', borderRadius: '8px', border: '1px solid #e5e7eb', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <div style={{ width: '100%', height: '140px', background: '#e5e7eb', borderRadius: '4px', overflow: 'hidden', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {book.coverImage ? (
+                  <img
+                    src={getBookCoverUrl(book.coverImage)}
+                    alt={book.title}
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    onError={(e) => { e.target.onerror = null; e.target.style.display = 'none'; e.target.nextSibling.style.display = 'flex'; }}
+                  />
+                ) : null}
+                <div style={{ display: book.coverImage ? 'none' : 'flex', flexDirection: 'column', alignItems: 'center', color: '#9ca3af' }}>
+                  <i className="bi bi-book" style={{ fontSize: '2rem' }}></i>
+                  <span style={{ fontSize: '0.7rem' }}>No Cover</span>
+                </div>
+              </div>
+              <h3 style={{ fontSize: '1rem', fontWeight: '600', margin: '0' }}>
+                {book.title}
               </h3>
-              <p style={{ color: '#6b7280', fontSize: '0.875rem', margin: '0 0 0.5rem 0' }}>
+              <p style={{ color: '#6b7280', fontSize: '0.875rem', margin: '0' }}>
                 <i className="bi bi-person"></i> {book.author}
               </p>
-              <p style={{ color: '#9ca3af', fontSize: '0.8rem', margin: '0 0 0.5rem 0' }}>
+              <p style={{ color: '#9ca3af', fontSize: '0.8rem', margin: '0' }}>
                 <i className="bi bi-box"></i> Available: {book.availableQuantity}/{book.quantity}
               </p>
-              <button
-                onClick={() => handleDeleteBook(book.id)}
-                className="btn btn-danger btn-sm"
-                style={{ marginTop: '0.5rem' }}
-              >
-                <i className="bi bi-trash"></i> Delete
-              </button>
+              <div style={{ marginTop: 'auto', display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <button
+                  onClick={() => handleViewBook(book)}
+                  className="btn btn-secondary btn-sm"
+                  style={{ flex: 1 }}
+                >
+                  <i className="bi bi-eye"></i> View
+                </button>
+                {book.digitalUrl && (
+                  <button
+                    onClick={() => handleDownloadBook(book)}
+                    className="btn btn-success btn-sm"
+                    style={{ flex: 1 }}
+                  >
+                    <i className="bi bi-download"></i> Download
+                  </button>
+                )}
+                <button
+                  onClick={() => handleDeleteBook(book.id)}
+                  className="btn btn-danger btn-sm"
+                  style={{ width: '100%', marginTop: '0.5rem' }}
+                >
+                  <i className="bi bi-trash"></i> Delete
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -631,6 +729,12 @@ const LibrarianDashboard = () => {
         isOpen={showUploadModal}
         onClose={() => setShowUploadModal(false)}
         onSuccess={handleUploadSuccess}
+      />
+
+      <BookViewer
+        book={viewerBook}
+        isOpen={showViewer}
+        onClose={() => setShowViewer(false)}
       />
     </div>
   );

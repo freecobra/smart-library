@@ -24,12 +24,14 @@ const profileRoutes = require('./routes/profile');
 const uploadRoutes = require('./routes/upload');
 const sessionsRoutes = require('./routes/sessions');
 const sessionManager = require('./routes/sessions');
+const ratingsRoutes = require('./routes/ratings');
+const recommendationsRoutes = require('./routes/recommendations');
 
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: process.env.FRONTEND_URL || 'http://localhost:3000',
+    origin: [process.env.FRONTEND_URL || 'http://localhost:3000', 'http://localhost:5173'],
     credentials: true,
     methods: ['GET', 'POST']
   }
@@ -46,12 +48,16 @@ app.set('io', io);
 app.use(
   helmet({
     crossOriginResourcePolicy: { policy: "cross-origin" },
+    crossOriginEmbedderPolicy: false,
     contentSecurityPolicy: {
       directives: {
         ...helmet.contentSecurityPolicy.getDefaultDirectives(),
-        "img-src": ["'self'", "data:", "blob:", "https:"],
+        "img-src": ["'self'", "data:", "blob:", "https:", (process.env.FRONTEND_URL || 'http://localhost:3000'), "http://localhost:5173"],
+        "frame-src": ["'self'", (process.env.FRONTEND_URL || 'http://localhost:3000'), "http://localhost:5173", "http://localhost:5000", "blob:"],
+        "frame-ancestors": ["'self'", (process.env.FRONTEND_URL || 'http://localhost:3000'), "http://localhost:5173"]
       },
     },
+    xFrameOptions: false,
   })
 );
 
@@ -206,6 +212,8 @@ app.use('/api/system', systemRoutes);
 app.use('/api/profile', profileRoutes);
 app.use('/api/upload', uploadRoutes);
 app.use('/api/sessions', sessionsRoutes);
+app.use('/api/ratings', ratingsRoutes);
+app.use('/api/recommendations', recommendationsRoutes);
 
 /* =========================
    SERVE REACT (PRODUCTION)

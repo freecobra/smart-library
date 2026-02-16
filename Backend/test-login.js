@@ -9,8 +9,8 @@ const testLogin = async () => {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                email: 'student@smartlib.gov.rw',
-                password: 'student123'
+                email: 'admin@library.com',
+                password: 'admin123'
             })
         });
 

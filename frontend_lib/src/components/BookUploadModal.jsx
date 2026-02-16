@@ -203,7 +203,16 @@ const BookUploadModal = ({ isOpen, onClose, onSuccess }) => {
                                 accept="image/*"
                                 onChange={(e) => handleFileChange(e, 'cover')}
                             />
-                            {coverImage && <small className="file-name">✓ {coverImage.name}</small>}
+                            {coverImage && (
+                                <div style={{ marginTop: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <img
+                                        src={URL.createObjectURL(coverImage)}
+                                        alt="Preview"
+                                        style={{ width: '40px', height: '60px', objectFit: 'cover', borderRadius: '4px', border: '1px solid #e5e7eb' }}
+                                    />
+                                    <small className="file-name">✓ {coverImage.name}</small>
+                                </div>
+                            )}
                         </div>
 
                         <div className="form-group">

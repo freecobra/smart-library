@@ -5,6 +5,8 @@ import { useSocket } from '../../hooks/useSocket';
 import { bookAPI, borrowingAPI, statisticsAPI } from '../../utils/api';
 import UserProfileDropdown from '../../components/UserProfileDropdown';
 import BookViewer from '../../components/BookViewer';
+import GlobalAIChat from '../../components/GlobalAIChat';
+import BookRecommendations from '../../components/BookRecommendations';
 import './StudentDashboard.css';
 
 const StudentDashboard = () => {
@@ -20,15 +22,55 @@ const StudentDashboard = () => {
   const [currentLang, setCurrentLang] = useState('EN');
   const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
   const [activeToast, setActiveToast] = useState(null);
+  const [recommendations, setRecommendations] = useState([]);
+  const [trendingBooks, setTrendingBooks] = useState([]);
+
+  useEffect(() => {
+    fetchRecommendations();
+    fetchTrending();
+  }, []);
+
+  const fetchTrending = async () => {
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const response = await fetch(`${apiUrl}/recommendations/trending?limit=5`);
+      const data = await response.json();
+      setTrendingBooks(data.recommendations || []);
+    } catch (error) {
+      console.error('Failed to fetch trending:', error);
+    }
+  };
+
+  const fetchRecommendations = async () => {
+    try {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+      const token = localStorage.getItem('token');
+      const response = await fetch(`${apiUrl}/recommendations/personalized?limit=4`, {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      const data = await response.json();
+      setRecommendations(data.recommendations || []);
+    } catch (error) {
+      console.error('Failed to fetch recommendations:', error);
+    }
+  };
+
+  const getBookCoverUrl = (coverPath) => {
+    if (!coverPath) return null;
+    if (coverPath.startsWith('http')) return coverPath;
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+    const baseUrl = apiUrl.split('/api')[0];
+    const cleanPath = coverPath.startsWith('/') ? coverPath : `/${coverPath}`;
+    return `${baseUrl}${cleanPath}`;
+  };
 
   const getProfileImageUrl = (profilePicture) => {
     if (!profilePicture) return null;
     if (profilePicture.startsWith('http')) return profilePicture;
-
     const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
     const baseUrl = apiUrl.split('/api')[0];
-
-    // Ensure accurate path (no double slashes, starts with /)
     const cleanPath = profilePicture.startsWith('/') ? profilePicture : `/${profilePicture}`;
     return `${baseUrl}${cleanPath}?t=${new Date().getTime()}`;
   };
@@ -648,6 +690,7 @@ const StudentDashboard = () => {
           progress: Math.floor(Math.random() * 100),
           canRenew: true,
           cover: record.book?.category?.substring(0, 2).toUpperCase() || 'BK',
+          coverImage: record.book?.coverImage,
           digitalUrl: record.book?.digitalUrl,
           category: record.book?.category,
           rating: 4.5,
@@ -688,6 +731,14 @@ const StudentDashboard = () => {
 
     fetchDashboardData();
   }, [user]);
+
+  // Scoped theme for scrollbar targeting
+  useEffect(() => {
+    document.body.classList.add('student-theme');
+    return () => {
+      document.body.classList.remove('student-theme');
+    };
+  }, []);
 
   // Real-time updates for notifications
   useEffect(() => {
@@ -756,7 +807,102 @@ const StudentDashboard = () => {
     { id: 4, title: 'Mathematics', author: '50+ Courses', cover: 'M', color: '#3B82F6' }
   ]);
 
+  // Voice Search Logic
+  const [isListening, setIsListening] = useState(false);
+  const [showTeamModal, setShowTeamModal] = useState(false);
+
+  const startVoiceSearch = () => {
+    // Switch to search section if not already active
+    if (activeSection !== 'search') {
+      setActiveSection('search');
+    }
+
+    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      const recognition = new SpeechRecognition();
+      recognition.lang = currentLang === 'FR' ? 'fr-FR' : 'en-US';
+      recognition.interimResults = false;
+      recognition.maxAlternatives = 1;
+
+      recognition.onstart = () => setIsListening(true);
+
+      recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        setSearchQuery(transcript);
+        setCurrentPage(1);
+      };
+
+      recognition.onend = () => setIsListening(false);
+      recognition.onerror = (event) => {
+        setIsListening(false);
+        console.error("Voice search error", event.error);
+        if (event.error === 'not-allowed') {
+          alert("Microphone access denied. Please allow microphone permissions.");
+        } else if (event.error === 'no-speech') {
+          alert("No speech detected. Please try again.");
+        }
+      };
+
+      recognition.start();
+    } else {
+      alert("Voice search is not supported in this browser.");
+    }
+  };
+
+  const TeamModal = () => (
+    <div className="modal-overlay" style={{
+      position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+      background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex',
+      alignItems: 'center', justifyContent: 'center'
+    }}>
+      <div className="modal-content" style={{
+        background: 'white', padding: '2rem', borderRadius: '16px',
+        width: '90%', maxWidth: '500px', position: 'relative'
+      }}>
+        <button onClick={() => setShowTeamModal(false)} style={{
+          position: 'absolute', top: '1rem', right: '1rem',
+          background: 'none', border: 'none', fontSize: '1.5rem', cursor: 'pointer'
+        }}><i className="bi bi-x"></i></button>
+
+        <h2 style={{ textAlign: 'center', marginBottom: '1.5rem', color: 'var(--ed-primary)' }}>
+          🚀 SmartLib Team
+        </h2>
+        <p style={{ textAlign: 'center', marginBottom: '1rem', color: '#666' }}>
+          The brilliant minds behind this AI-Powered library.
+        </p>
+
+        <ul style={{ listStyle: 'none', padding: 0 }}>
+          {[
+            'Maniragaba Jean Willson',
+            'Uwase Sion',
+            'Nyirashikama Joy',
+            'Iranzi steven',
+            'Ikuzwe Nizeyimana Egide',
+            'Muriza Cyiza Briand',
+            'Ingabire christella'
+          ].map((name, idx) => (
+            <li key={idx} style={{
+              padding: '0.75rem', borderBottom: '1px solid #eee',
+              display: 'flex', alignItems: 'center', gap: '0.75rem'
+            }}>
+              <div style={{
+                width: '32px', height: '32px', borderRadius: '50%',
+                background: `hsl(${idx * 50}, 70%, 80%)`, color: '#333',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 'bold'
+              }}>
+                {name[0]}
+              </div>
+              <span style={{ fontWeight: 600 }}>{name}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+
   // --- Sub-sections ---
+
+  // ... (keeping existing sub-sections)
 
   // EduLearn Overview Section
   const StudentOverview = () => (
@@ -822,7 +968,7 @@ const StudentDashboard = () => {
                 <div style={{
                   width: '100%',
                   height: '120px',
-                  background: 'linear-gradient(135deg, var(--ed-primary) 0%, #6366F1 100%)',
+                  background: book.coverImage ? 'transparent' : 'linear-gradient(135deg, var(--ed-primary) 0%, #6366F1 100%)',
                   borderRadius: '8px',
                   display: 'flex',
                   alignItems: 'center',
@@ -830,9 +976,18 @@ const StudentDashboard = () => {
                   color: 'white',
                   fontSize: '2rem',
                   fontWeight: '800',
-                  marginBottom: '1rem'
+                  marginBottom: '1rem',
+                  overflow: 'hidden',
+                  border: book.coverImage ? '1px solid var(--ed-border)' : 'none'
                 }}>
-                  {book.cover}
+                  {book.coverImage ? (
+                    <img
+                      src={getBookCoverUrl(book.coverImage)}
+                      alt={book.title}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      onError={(e) => { e.target.parentElement.style.background = 'linear-gradient(135deg, var(--ed-primary) 0%, #6366F1 100%)'; e.target.style.display = 'none'; e.target.parentElement.innerHTML = book.cover; }}
+                    />
+                  ) : book.cover}
                 </div>
                 <h3 style={{ fontSize: '0.95rem', fontWeight: '700', margin: '0 0 0.5rem 0', color: 'var(--ed-text-dark)' }}>
                   {book.title}
@@ -950,6 +1105,62 @@ const StudentDashboard = () => {
   const MyBooksSection = () => (
     <div className="ed-content">
       <div className="ed-section">
+        {/* AI Recommendations Section */}
+        {recommendations.length > 0 && (
+          <div className="section-header" style={{ marginTop: '2rem', marginBottom: '1rem' }}>
+            <h2>
+              <i className="bi bi-stars" style={{ color: '#8b5cf6', marginRight: '0.5rem' }}></i>
+              Recommended for You
+            </h2>
+            <div className="section-actions">
+              <button className="btn-link">See All</button>
+            </div>
+          </div>
+        )}
+
+        {recommendations.length > 0 && (
+          <div className="recommendations-grid" style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
+            gap: '1.5rem',
+            marginBottom: '2.5rem'
+          }}>
+            {recommendations.map(book => (
+              <div key={book.id} className="book-card" onClick={() => handleBookClick(book)}>
+                <div className="book-cover">
+                  {book.coverImage ? (
+                    <img src={getBookCoverUrl(book.coverImage)} alt={book.title} />
+                  ) : (
+                    <div className="placeholder-cover">
+                      <i className="bi bi-book"></i>
+                    </div>
+                  )}
+                  <div className="book-overlay">
+                    <button className="action-btn view-btn" onClick={(e) => {
+                      e.stopPropagation();
+                      handleBookClick(book);
+                    }}>
+                      <i className="bi bi-eye"></i> View
+                    </button>
+                  </div>
+                  {book.digitalUrl && <span className="badge pdf-badge">PDF</span>}
+                </div>
+                <div className="book-info">
+                  <h3>{book.title}</h3>
+                  <p className="author">{book.author}</p>
+                  <div className="book-meta">
+                    <span className="category">{book.category}</span>
+                    <span className="rating">
+                      <i className="bi bi-star-fill" style={{ color: '#fbbf24', marginRight: '4px' }}></i>
+                      4.5
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className="ed-section-head">
           <h2>My Borrowed Books</h2>
           <span className="item-action-pill">{currentBooks.length} active</span>
@@ -965,7 +1176,11 @@ const StudentDashboard = () => {
           <div className="ed-list">
             {currentBooks.map(book => (
               <div key={book.id} className="ed-list-item">
-                <div className="item-badge" style={{ background: 'var(--ed-primary-soft)', color: 'var(--ed-primary)', width: '36px', height: '36px' }}>{book.cover[0]}</div>
+                <div className="item-badge" style={{ background: 'var(--ed-primary-soft)', color: 'var(--ed-primary)', width: '36px', height: '36px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  {book.coverImage ? (
+                    <img src={getBookCoverUrl(book.coverImage)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  ) : book.cover[0]}
+                </div>
                 <div className="item-info">
                   <span className="name" style={{ fontSize: '0.875rem', fontWeight: 700 }}>{book.title}</span>
                   <span className="sub">by {book.author} • Due: {book.dueDate}</span>
@@ -1016,6 +1231,22 @@ const StudentDashboard = () => {
                 setCurrentPage(1);
               }}
             />
+            <button
+              onClick={startVoiceSearch}
+              className={`mic-btn ${isListening ? 'listening' : ''}`}
+              title="Voice Search"
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                color: isListening ? '#ef4444' : 'var(--ed-text-sub)',
+                transition: 'all 0.2s',
+                padding: '4px 8px',
+                animation: isListening ? 'pulse 1.5s infinite' : 'none'
+              }}
+            >
+              <i className={`bi bi-${isListening ? 'mic-fill' : 'mic'}`}></i>
+            </button>
             {searchQuery && (
               <button
                 onClick={() => setSearchQuery('')}
@@ -1038,7 +1269,11 @@ const StudentDashboard = () => {
               <div className="instructor-list">
                 {paginatedItems.map(book => (
                   <div key={book.id} className="instructor-item">
-                    <div className="item-badge" style={{ background: 'var(--ed-primary-soft)', color: 'var(--ed-primary)', width: '36px', height: '36px' }}>{book.cover[0]}</div>
+                    <div className="item-badge" style={{ background: 'var(--ed-primary-soft)', color: 'var(--ed-primary)', width: '36px', height: '36px', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      {book.coverImage ? (
+                        <img src={getBookCoverUrl(book.coverImage)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (book.cover ? book.cover[0] : 'B')}
+                    </div>
                     <div className="inst-info">
                       <span className="name" style={{ fontSize: '0.85rem' }}>{book.title}</span>
                       <span className="count">{book.author} • {book.category}</span>
@@ -1269,6 +1504,9 @@ const StudentDashboard = () => {
           <button className={`ed-nav-item ${activeSection === 'resources' ? 'active' : ''}`} onClick={() => setActiveSection('resources')}>
             <i className="bi bi-journal-bookmark"></i> {t('resources')}
           </button>
+          <button className={`ed-nav-item ${activeSection === 'recommendations' ? 'active' : ''}`} onClick={() => setActiveSection('recommendations')}>
+            <i className="bi bi-stars"></i> Recommendations
+          </button>
 
           <div className="sidebar-cat">{t('account')}</div>
           <button className="ed-nav-item" onClick={() => navigate('/profile')}>
@@ -1276,6 +1514,11 @@ const StudentDashboard = () => {
           </button>
           <button className="ed-nav-item" onClick={() => { logout(); navigate('/login'); }}>
             <i className="bi bi-box-arrow-right"></i> {t('logout')}
+          </button>
+
+          <div className="sidebar-cat">About</div>
+          <button className="ed-nav-item" onClick={() => setShowTeamModal(true)}>
+            <i className="bi bi-people"></i> Team
           </button>
         </nav>
 
@@ -1300,7 +1543,30 @@ const StudentDashboard = () => {
           <div className="header-search-wrap">
             <div className="ed-search-container" style={{ height: '36px' }}>
               <i className="bi bi-search" style={{ color: 'var(--ed-text-sub)', fontSize: '0.9rem' }}></i>
-              <input type="text" className="ed-search-input" placeholder={t('searchPlaceholder')} style={{ fontSize: '0.8rem' }} />
+              <input
+                type="text"
+                className="ed-search-input"
+                placeholder={t('searchPlaceholder')}
+                style={{ fontSize: '0.8rem' }}
+                value={activeSection === 'search' ? searchQuery : ''}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  if (activeSection !== 'search') setActiveSection('search');
+                }}
+                onFocus={() => setActiveSection('search')}
+              />
+              <button
+                onClick={startVoiceSearch}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: isListening ? '#ef4444' : 'var(--ed-text-sub)',
+                  padding: '0 8px'
+                }}
+              >
+                <i className={`bi bi-${isListening ? 'mic-fill' : 'mic'}`}></i>
+              </button>
             </div>
           </div>
 
@@ -1403,6 +1669,18 @@ const StudentDashboard = () => {
           {activeSection === 'resources' && <StudyResourcesSection />}
           {activeSection === 'mailbox' && <MailboxSection />}
           {activeSection === 'calendar' && <CalendarSection />}
+          {activeSection === 'recommendations' && (
+            <div className="dashboard-section" style={{ padding: '2rem' }}>
+              <div className="section-header" style={{ marginBottom: '2rem' }}>
+                <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--ed-text-dark)' }}>
+                  <i className="bi bi-stars" style={{ marginRight: '10px', color: '#8b5cf6' }}></i>
+                  Your Recommendations
+                </h2>
+                <p style={{ color: 'var(--ed-text-sub)' }}>Books picked just for you based on your interests.</p>
+              </div>
+              <BookRecommendations />
+            </div>
+          )}
         </main>
       </div>
 
@@ -1431,6 +1709,12 @@ const StudentDashboard = () => {
           </button>
         </div>
       )}
+
+      {/* Team Modal */}
+      {showTeamModal && <TeamModal />}
+
+      {/* Global AI Chat */}
+      <GlobalAIChat user={user} currentBook={viewerBook} />
     </div>
   );
 };

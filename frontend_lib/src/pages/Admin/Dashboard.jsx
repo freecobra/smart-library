@@ -40,6 +40,23 @@ const AdminDashboard = () => {
   const [borrowRequests, setBorrowRequests] = useState([]);
   const [recentActivity, setRecentActivity] = useState([]);
 
+  // Helper function to resolve file URLs
+  const getBookCoverUrl = (path) => {
+    if (!path) return '';
+    if (path.startsWith('http')) return path;
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+    const baseUrl = apiUrl.split('/api')[0];
+
+    // Clean path: handle backslashes from Windows paths and ensure leading slash
+    let cleanPath = path.replace(/\\/g, '/');
+    if (!cleanPath.startsWith('/')) cleanPath = '/' + cleanPath;
+
+    // Remove duplicate slashes if any
+    cleanPath = cleanPath.replace(/\/+/g, '/');
+
+    return `${baseUrl}${cleanPath}`;
+  };
+
   // Fetch all dashboard data
   const fetchDashboardData = async () => {
     setLoading(true);
@@ -474,7 +491,7 @@ const AdminDashboard = () => {
             }}>
               <div style={{
                 height: '160px',
-                background: book.coverImage ? `url(${book.coverImage}) center/cover no-repeat` : '#f3f4f6',
+                background: book.coverImage ? `url(${getBookCoverUrl(book.coverImage)}) center/cover no-repeat` : '#f3f4f6',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',

@@ -24,6 +24,8 @@ model User {
   
   borrowRecords BorrowRecord[]
   systemLogs    SystemLog[]
+  ratings       BookRating[]
+  interactions  UserInteraction[]
 
   @@map("users")
 }
@@ -46,6 +48,8 @@ model Book {
   updatedAt         DateTime       @updatedAt
   
   borrowRecords     BorrowRecord[]
+  ratings           BookRating[]
+  interactions      UserInteraction[]
 
   @@map("books")
 }
@@ -107,4 +111,38 @@ model SystemSettings {
   updatedAt         DateTime @updatedAt
   
   @@map("system_settings")
+}
+
+// Book Rating model - for AI recommendations
+model BookRating {
+  id        String   @id @default(uuid())
+  userId    String
+  bookId    String
+  rating    Int      // 1-5 stars
+  review    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book      Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, bookId])
+  @@map("book_ratings")
+}
+
+// User Interaction model - tracks user behavior for AI
+model UserInteraction {
+  id         String   @id @default(uuid())
+  userId     String
+  bookId     String
+  actionType String   // 'view', 'borrow', 'download', 'search'
+  metadata   String?  // JSON string for additional data
+  createdAt  DateTime @default(now())
+  
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book       Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  
+  @@index([userId, actionType])
+  @@index([bookId])
+  @@map("user_interactions")
 }
